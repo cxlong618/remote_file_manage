@@ -1,0 +1,23 @@
+[Unit]
+Description=Remote File Manager Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/remote_file_manage/backend
+Environment="PATH=/opt/remote_file_manage/backend/venv/bin"
+ExecStart=/opt/remote_file_manage/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=10
+
+# 日志
+StandardOutput=append:/var/log/remote-file-manager/backend.log
+StandardError=append:/var/log/remote-file-manager/error.log
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
