@@ -21,8 +21,16 @@ class UserResponse(BaseModel):
     is_authenticated: bool = True
 
 
-# 预设密码的哈希（将在启动时验证）
-hashed_password = get_password_hash(settings.password)
+# 延迟哈希密码（避免模块导入时的长度限制问题）
+_hashed_password = None
+
+
+def get_hashed_password():
+    """获取密码哈希（延迟计算）"""
+    global _hashed_password
+    if _hashed_password is None:
+        _hashed_password = get_password_hash(settings.password)
+    return _hashed_password
 
 
 @router.post("/login", response_model=LoginResponse, summary="用户登录")
@@ -42,7 +50,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         )
 
     # 验证密码
-    if not verify_password(form_data.password, hashed_password):
+    if not verify_password(form_data.password, get_hashed_password()):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
