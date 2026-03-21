@@ -7,15 +7,27 @@ echo ""
 # 停止后端
 if [ -f "backend/.backend.pid" ]; then
     BACKEND_PID=$(cat backend/.backend.pid)
-    kill $BACKEND_PID 2>/dev/null && echo "✅ 后端已停止 (PID: $BACKEND_PID)"
-    rm backend/.backend.pid
+    if ps -p $BACKEND_PID > /dev/null 2>&1; then
+        kill $BACKEND_PID 2>/dev/null && echo "✅ 后端已停止 (PID: $BACKEND_PID)"
+    else
+        echo "⚠️  后端进程不存在"
+    fi
+    rm -f backend/.backend.pid
+else
+    echo "⚠️  后端未运行"
 fi
 
 # 停止前端
 if [ -f "frontend/.frontend.pid" ]; then
     FRONTEND_PID=$(cat frontend/.frontend.pid)
-    kill $FRONTEND_PID 2>/dev/null && echo "✅ 前端已停止 (PID: $FRONTEND_PID)"
-    rm frontend/.frontend.pid
+    if ps -p $FRONTEND_PID > /dev/null 2>&1; then
+        kill $FRONTEND_PID 2>/dev/null && echo "✅ 前端已停止 (PID: $FRONTEND_PID)"
+    else
+        echo "⚠️  前端进程不存在"
+    fi
+    rm -f frontend/.frontend.pid
+else
+    echo "⚠️  前端未运行"
 fi
 
 # 清理可能残留的进程

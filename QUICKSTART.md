@@ -10,8 +10,15 @@ nano backend/.env  # 必须修改：USERNAME、PASSWORD、SECRET_KEY、ROOT_PATH
 ```
 
 ### 2️⃣ 一键启动
+
+#### 本地开发
 ```bash
 ./start.sh
+```
+
+#### SSH 远程部署（推荐）⭐
+```bash
+./start-server.sh
 ```
 
 ### 3️⃣ 访问应用
@@ -22,12 +29,15 @@ nano backend/.env  # 必须修改：USERNAME、PASSWORD、SECRET_KEY、ROOT_PATH
 
 ## 📋 启动脚本说明
 
-| 脚本 | 说明 | 使用场景 |
-|------|------|---------|
-| `./start.sh` | 开发模式（前端热重载） | 日常开发测试 |
-| `./start-prod.sh` | 生产模式（构建前端） | 服务器部署 |
-| `./stop.sh` | 停止所有服务 | 停止应用 |
-| `./restart.sh` | 重启服务 | 更新后重启 |
+| 脚本 | 说明 | 使用场景 | 是否阻塞终端 |
+|------|------|---------|------------|
+| `./start-server.sh` | 生产模式（完全后台） | **SSH 远程部署** ⭐ | ✅ 不阻塞 |
+| `./start.sh` | 开发模式（热重载） | 本地开发 | ✅ 不阻塞 |
+| `./stop.sh` | 停止所有服务 | 停止应用 | - |
+| `./restart.sh` | 重启服务 | 更新后重启 | - |
+| `./status.sh` | 查看运行状态 | 检查服务 | - |
+
+**推荐：SSH 远程部署使用 `./start-server.sh`**
 
 ---
 

@@ -62,13 +62,31 @@ if [ ! -d "node_modules" ]; then
     npm install -q
 fi
 
-# 开发模式启动
+# 开发模式启动（后台运行）
 echo "启动前端开发服务器（端口 5173）..."
-npm run dev &
+nohup npm run dev > /dev/null 2>&1 &
 FRONTEND_PID=$!
 
+# 等待前端启动
+sleep 3
+
+# 检查进程是否成功启动
+if ps -p $BACKEND_PID > /dev/null; then
+    echo "✅ 后端已启动 (PID: $BACKEND_PID)"
+else
+    echo "❌ 后端启动失败"
+    exit 1
+fi
+
+if ps -p $FRONTEND_PID > /dev/null; then
+    echo "✅ 前端已启动 (PID: $FRONTEND_PID)"
+else
+    echo "❌ 前端启动失败"
+    exit 1
+fi
+
 echo ""
-echo "✅ 启动完成！"
+echo "✅ 启动完成！服务已在后台运行"
 echo ""
 echo "📍 访问地址:"
 echo "   前端: http://localhost:5173"
@@ -76,15 +94,26 @@ echo "   API:  http://localhost:8000/api/docs"
 echo ""
 echo "💡 登录信息请查看 backend/.env 文件"
 echo ""
+echo "📊 查看日志:"
+echo "   后端: tail -f backend/logs/backend.log"
+echo "   前端: tail -f frontend/logs/frontend.log"
+echo ""
 echo "⏹️  停止服务:"
-echo "   kill $BACKEND_PID $FRONTEND_PID"
-echo "   或运行: ./stop.sh"
+echo "   ./stop.sh"
 echo ""
 
 # 保存 PID
-echo $BACKEND_PID > .backend.pid
-echo $FRONTEND_PID > .frontend.pid
+echo $BACKEND_PID > backend/.backend.pid
+echo $FRONTEND_PID > frontend/.frontend.pid
 
-# 等待用户输入
-echo "按 Ctrl+C 停止所有服务"
-wait
+# 获取服务器 IP
+SERVER_IP=$(hostname -I | awk '{print $1}')
+if [ ! -z "$SERVER_IP" ]; then
+    echo "🌐 远程访问:"
+    echo "   前端: http://$SERVER_IP:5173"
+    echo "   API:  http://$SERVER_IP:8000/api/docs"
+    echo ""
+fi
+
+echo "✨ 您现在可以关闭此终端，服务将继续运行"
+echo ""
