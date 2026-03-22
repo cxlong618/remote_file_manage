@@ -35,7 +35,7 @@
       <div class="path-input">
         <el-input
           v-model="pathInput"
-          placeholder="输入路径快速跳转（支持 ~/path 或文件路径）"
+          placeholder="输入路径快速跳转（~ 代表 root 目录，支持文件路径）"
           @keyup.enter="handlePathInput"
         >
           <template #append>
@@ -267,7 +267,7 @@ const handlePathInput = async () => {
 
 /**
  * 处理路径输入，支持：
- * 1. ~ 开头 → 跳转到根目录
+ * 1. ~ 开头 → 跳转到 root 目录
  * 2. 文件路径 → 跳转到父目录并预览文件
  * 3. 目录路径 → 直接跳转
  */
@@ -277,17 +277,18 @@ const processPathInput = async (inputPath: string): Promise<{
 }> => {
   let path = inputPath
 
-  // 1. 处理 ~ 开头（跳转到根目录）
+  // 1. 处理 ~ 开头（跳转到 root 目录）
   if (path.startsWith('~')) {
     path = path.substring(1).trim()
     if (path.startsWith('/') || path.startsWith('\\')) {
       path = path.substring(1)
     }
     if (!path) {
-      // 只有 ~，跳转到根目录
-      return { directoryPath: '', fileToPreview: null }
+      // 只有 ~，跳转到 root 目录
+      return { directoryPath: 'root', fileToPreview: null }
     }
-    // ~/xxx 形式，去掉 ~ 后继续处理
+    // ~/xxx 形式，指向 root/xxx
+    path = 'root/' + path
   }
 
   // 2. 判断是文件还是目录
