@@ -16,20 +16,20 @@
       <!-- 图片预览 -->
       <ImageViewer
         v-else-if="file?.preview_type === 'image'"
-        :src="mediaUrl"
+        :src="mediaBlobUrl"
       />
 
       <!-- 视频播放器 -->
       <MediaPlayer
         v-else-if="file?.preview_type === 'video'"
-        :src="mediaUrl"
+        :src="mediaBlobUrl"
         type="video"
       />
 
       <!-- 音频播放器 -->
       <MediaPlayer
         v-else-if="file?.preview_type === 'audio'"
-        :src="mediaUrl"
+        :src="mediaBlobUrl"
         type="audio"
       />
 
@@ -67,7 +67,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
-import { previewText, getMediaUrlWithToken, downloadFile } from '@/api/files'
+import { previewText, getMediaBlobUrl, downloadFile } from '@/api/files'
 import MarkdownViewer from './preview/MarkdownViewer.vue'
 import ImageViewer from './preview/ImageViewer.vue'
 import MediaPlayer from './preview/MediaPlayer.vue'
@@ -88,25 +88,44 @@ const emit = defineEmits<Emits>()
 
 const loading = ref(false)
 const content = ref('')
+const mediaBlobUrl = ref<string>('')
 
 const dialogVisible = computed({
   get: () => props.visible,
   set: (value) => emit('update:visible', value)
 })
 
-const mediaUrl = computed(() => {
-  if (!props.file) return ''
-  return getMediaUrlWithToken(props.file.path)
-})
-
 // 监听文件变化，加载内容
 watch(() => props.file, async (newFile) => {
+  // 清理旧的 Blob URL
+  if (mediaBlobUrl.value) {
+    window.URL.revokeObjectURL(mediaBlobUrl.value)
+    mediaBlobUrl.value = ''
+  }
+
   if (newFile && (newFile.preview_type === 'markdown' || newFile.preview_type === 'text')) {
     await loadContent()
+  } else if (newFile && ['image', 'video', 'audio'].includes(newFile.preview_type || '')) {
+    // 加载媒体文件的 Blob URL
+    await loadMediaBlob()
   } else {
     content.value = ''
   }
 })
+
+// 加载媒体 Blob URL
+const loadMediaBlob = async () => {
+  if (!props.file) return
+
+  loading.value = true
+  try {
+    mediaBlobUrl.value = await getMediaBlobUrl(props.file.path)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '加载媒体失败')
+  } finally {
+    loading.value = false
+  }
+}
 
 // 加载文本内容
 const loadContent = async () => {

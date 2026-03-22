@@ -12,7 +12,7 @@ from ..services.file_service import (
     get_parent_path
 )
 from ..utils.preview import should_stream_preview, is_text_previewable
-from ..dependencies import get_current_user, get_current_user_optional
+from ..dependencies import get_current_user
 from ..config import settings
 
 router = APIRouter(prefix="/api/files", tags=["文件操作"])
@@ -136,34 +136,14 @@ async def preview_text(
 @router.get("/preview/stream", summary="流式传输媒体文件")
 async def preview_media(
     path: str,
-    token: Optional[str] = None,
-    current_user: Optional[str] = Depends(get_current_user)
+    current_user: str = Depends(get_current_user)
 ):
     """
     流式传输音视频文件
 
     - **path**: 相对于根目录的路径
-    - **token**: 可选的 JWT token（通过 URL 参数传递，用于媒体标签）
     """
     from ..utils.path import validate_path
-    from ..dependencies import get_current_user_optional
-
-    # 如果通过 Header 传递失败，尝试从 URL 参数获取
-    if not current_user and token:
-        try:
-            current_user = await get_current_user_optional(token)
-        except:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials"
-            )
-
-    # 如果两种方式都没有认证信息
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
 
     try:
         full_path = validate_path(path, settings.root_path)

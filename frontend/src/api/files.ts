@@ -77,19 +77,7 @@ export const downloadFolder = async (path: string, fileName: string) => {
 }
 
 /**
- * 获取带 token 的媒体 URL（用于图片、视频、音频预览）
- */
-export const getMediaUrlWithToken = (path: string): string => {
-  const token = localStorage.getItem('token')
-  const baseUrl = `/api/files/preview/stream?path=${encodeURIComponent(path)}`
-  if (token) {
-    return `${baseUrl}&token=${token}`
-  }
-  return baseUrl
-}
-
-/**
- * 获取媒体文件的 Blob URL（带认证）
+ * 获取媒体文件的 Blob URL（带认证，用于图片、视频、音频预览）
  */
 export const getMediaBlobUrl = async (path: string): Promise<string> => {
   const response = await api.get('/files/preview/stream', {
