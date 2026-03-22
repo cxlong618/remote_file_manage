@@ -229,3 +229,74 @@ async def download_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.get("/download-folder", summary="下载文件夹（压缩）")
+async def download_folder(
+    path: str,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    下载文件夹（ZIP格式）
+
+    - **path**: 相对于根目录的路径
+    """
+    from ..utils.path import validate_path
+    import zipfile
+    import io
+
+    try:
+        full_path = validate_path(path, settings.root_path)
+
+        if not full_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文件夹不存在"
+            )
+
+        if not full_path.is_dir():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不是文件夹"
+            )
+
+        # 计算文件夹大小（限制 500MB）
+        total_size = 0
+        MAX_SIZE = 500 * 1024 * 1024  # 500MB
+        file_count = 0
+
+        for file_path in full_path.rglob('*'):
+            if file_path.is_file():
+                total_size += file_path.stat().st_size
+                file_count += 1
+                if total_size > MAX_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"文件夹过大（超过{MAX_SIZE // (1024*1024)}MB），无法下载"
+                    )
+
+        # 创建ZIP文件
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_path in full_path.rglob('*'):
+                if file_path.is_file():
+                    arcname = file_path.relative_to(full_path)
+                    zip_file.write(file_path, arcname)
+
+        zip_buffer.seek(0)
+
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.read()),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={full_path.name}.zip"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

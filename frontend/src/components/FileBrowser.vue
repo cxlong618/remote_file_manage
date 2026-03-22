@@ -73,7 +73,7 @@
       >
         <el-table-column prop="name" label="名称" min-width="250">
           <template #default="{ row }">
-            <div class="file-name">
+            <div class="file-name" @click="handleNameClick(row)">
               <el-icon :size="20" :color="getIconColor(row)">
                 <component :is="getFileIcon(row)" />
               </el-icon>
@@ -94,28 +94,51 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
-            <el-button
-              v-if="row.is_dir"
-              type="primary"
-              size="small"
-              :icon="FolderOpened"
-              @click="filesStore.enterDirectory(row)"
-            >
-              打开
-            </el-button>
+            <!-- 文件夹操作 -->
+            <template v-if="row.is_dir">
+              <el-button
+                type="primary"
+                size="small"
+                :icon="FolderOpened"
+                @click="filesStore.enterDirectory(row)"
+              >
+                打开
+              </el-button>
+              <el-button
+                type="success"
+                size="small"
+                :icon="Download"
+                @click="handleDownload(row)"
+              >
+                下载
+              </el-button>
+            </template>
 
-            <el-button
-              v-if="row.is_previewable"
-              type="success"
-              size="small"
-              :icon="View"
-              @click="handlePreview(row)"
-            >
-              预览
-            </el-button>
+            <!-- 文件操作 -->
+            <template v-else>
+              <el-button
+                v-if="row.is_previewable"
+                type="success"
+                size="small"
+                :icon="View"
+                @click="handlePreview(row)"
+              >
+                预览
+              </el-button>
 
+              <el-button
+                type="primary"
+                size="small"
+                :icon="Download"
+                @click="handleDownload(row)"
+              >
+                下载
+              </el-button>
+            </template>
+
+            <!-- 删除按钮（文件和文件夹都有） -->
             <el-button
               type="danger"
               size="small"
@@ -155,7 +178,8 @@ import {
   Refresh,
   FolderOpened,
   View,
-  Delete
+  Delete,
+  Download
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { deleteFile } from '@/api/files'
@@ -222,6 +246,15 @@ const handleRowDblClick = (row: FileInfo) => {
   }
 }
 
+// 处理名称点击
+const handleNameClick = (row: FileInfo) => {
+  if (row.is_dir) {
+    filesStore.enterDirectory(row)
+  } else if (row.is_previewable) {
+    handlePreview(row)
+  }
+}
+
 // 处理预览
 const handlePreview = (file: FileInfo) => {
   currentPreviewFile.value = file
@@ -247,6 +280,30 @@ const handleDelete = async (file: FileInfo) => {
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '删除失败')
+    }
+  }
+}
+
+// 处理下载
+const handleDownload = async (file: FileInfo) => {
+  try {
+    const { downloadFile, downloadFolder } = await import('@/api/files')
+
+    if (file.is_dir) {
+      // 下载文件夹（ZIP）
+      ElMessage.info('正在压缩文件夹，请稍候...')
+      await downloadFolder(file.path, `${file.name}.zip`)
+      ElMessage.success('下载成功')
+    } else {
+      // 下载文件
+      await downloadFile(file.path, file.name)
+      ElMessage.success('下载成功')
+    }
+  } catch (error: any) {
+    if (error.response?.status === 413) {
+      ElMessage.error('文件夹过大，无法下载')
+    } else {
+      ElMessage.error(error.response?.data?.detail || error.message || '下载失败')
     }
   }
 }
@@ -304,10 +361,16 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
 }
 
 .file-name:hover {
   color: #409EFF;
+}
+
+.file-name:active {
+  transform: scale(0.98);
 }
 
 :deep(.el-breadcrumb__item) {

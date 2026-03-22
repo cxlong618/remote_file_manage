@@ -67,7 +67,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
-import { previewText, getMediaUrl, getDownloadUrl } from '@/api/files'
+import { previewText, getMediaUrl, downloadFile } from '@/api/files'
 import MarkdownViewer from './preview/MarkdownViewer.vue'
 import ImageViewer from './preview/ImageViewer.vue'
 import MediaPlayer from './preview/MediaPlayer.vue'
@@ -125,16 +125,18 @@ const loadContent = async () => {
 }
 
 // 下载文件
-const handleDownload = () => {
+const handleDownload = async () => {
   if (!props.file) return
 
-  const url = getDownloadUrl(props.file.path)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = props.file.name
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  try {
+    loading.value = true
+    await downloadFile(props.file.path, props.file.name)
+    ElMessage.success('下载成功')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '下载失败')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
