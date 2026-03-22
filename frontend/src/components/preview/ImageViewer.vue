@@ -4,7 +4,7 @@
       :src="src"
       fit="contain"
       :preview-src-list="[src]"
-      style="width: 100%; height: 100%"
+      class="responsive-image"
     >
       <template #placeholder>
         <div class="image-placeholder">
@@ -41,6 +41,14 @@ defineProps<Props>()
   justify-content: center;
   align-items: center;
   min-height: 400px;
+  max-height: 70vh;
+}
+
+.responsive-image {
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
 }
 
 .image-placeholder,
