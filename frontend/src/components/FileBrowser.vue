@@ -35,7 +35,7 @@
       <div class="path-input">
         <el-input
           v-model="pathInput"
-          placeholder="输入路径快速跳转"
+          placeholder="输入路径快速跳转（支持 ~/path 或文件路径）"
           @keyup.enter="handlePathInput"
         >
           <template #append>
@@ -225,10 +225,94 @@ const getIconColor = (file: FileInfo) => {
 }
 
 // 处理路径输入
-const handlePathInput = () => {
-  if (pathInput.value.trim()) {
-    filesStore.navigateTo(pathInput.value.trim())
+const handlePathInput = async () => {
+  const inputPath = pathInput.value.trim()
+  if (!inputPath) {
+    return
+  }
+
+  try {
+    // 显示加载提示
+    const loading = ElMessage.info({
+      message: '正在解析路径...',
+      duration: 0
+    })
+
+    // 处理路径输入
+    const processedPath = await processPathInput(inputPath)
+
+    if (processedPath.fileToPreview) {
+      // 如果是文件路径，跳转到父目录并预览文件
+      loading.close()
+      await filesStore.navigateTo(processedPath.directoryPath)
+
+      // 显示预览提示
+      ElMessage.success('已跳转到文件所在目录，正在打开预览...')
+
+      // 延迟预览，确保文件列表已加载
+      setTimeout(() => {
+        const targetFile = filesStore.files.find(f => f.path === processedPath.fileToPreview)
+        if (targetFile && targetFile.is_previewable) {
+          handlePreview(targetFile)
+        } else {
+          ElMessage.warning('文件不支持预览或未找到')
+        }
+      }, 300)
+    } else {
+      // 如果是目录路径，直接跳转
+      loading.close()
+      await filesStore.navigateTo(processedPath.directoryPath)
+      ElMessage.success('已跳转到目标目录')
+    }
+
     pathInput.value = ''
+  } catch (error: any) {
+    ElMessage.error(error.message || '路径跳转失败')
+  }
+}
+
+/**
+ * 处理路径输入，支持：
+ * 1. ~ 开头 → 跳转到根目录
+ * 2. 文件路径 → 跳转到父目录并预览文件
+ * 3. 目录路径 → 直接跳转
+ */
+const processPathInput = async (inputPath: string): Promise<{
+  directoryPath: string
+  fileToPreview: string | null
+}> => {
+  let path = inputPath
+
+  // 1. 处理 ~ 开头（跳转到根目录）
+  if (path.startsWith('~')) {
+    path = path.substring(1).trim()
+    if (path.startsWith('/') || path.startsWith('\\')) {
+      path = path.substring(1)
+    }
+    if (!path) {
+      // 只有 ~，跳转到根目录
+      return { directoryPath: '', fileToPreview: null }
+    }
+    // ~/xxx 形式，去掉 ~ 后继续处理
+  }
+
+  // 2. 判断是文件还是目录
+  // 先尝试作为文件路径获取信息
+  try {
+    const { getFileInfo } = await import('@/api/files')
+    const fileInfo = await getFileInfo(path)
+
+    if (fileInfo.is_dir) {
+      // 是目录，直接跳转
+      return { directoryPath: path, fileToPreview: null }
+    } else {
+      // 是文件，跳转到父目录并预览
+      const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''
+      return { directoryPath: parentPath, fileToPreview: path }
+    }
+  } catch (error: any) {
+    // 如果获取文件信息失败，尝试作为目录路径处理
+    return { directoryPath: path, fileToPreview: null }
   }
 }
 

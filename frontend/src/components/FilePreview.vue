@@ -67,7 +67,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
-import { previewText, getMediaUrl, downloadFile } from '@/api/files'
+import { previewText, getMediaUrlWithToken, downloadFile } from '@/api/files'
 import MarkdownViewer from './preview/MarkdownViewer.vue'
 import ImageViewer from './preview/ImageViewer.vue'
 import MediaPlayer from './preview/MediaPlayer.vue'
@@ -96,7 +96,7 @@ const dialogVisible = computed({
 
 const mediaUrl = computed(() => {
   if (!props.file) return ''
-  return getMediaUrl(props.file.path)
+  return getMediaUrlWithToken(props.file.path)
 })
 
 // 监听文件变化，加载内容
