@@ -232,42 +232,36 @@ const handlePathInput = async () => {
   }
 
   try {
-    // 显示加载提示
-    const loading = ElMessage.info({
-      message: '正在解析路径...',
-      duration: 0
-    })
+    // 显示简单提示
+    ElMessage.info('正在解析路径...')
 
     // 处理路径输入
     const processedPath = await processPathInput(inputPath)
 
     if (processedPath.fileToPreview) {
       // 如果是文件路径，跳转到父目录并预览文件
-      loading.close()
       await filesStore.navigateTo(processedPath.directoryPath)
-
-      // 显示预览提示
-      ElMessage.success('已跳转到文件所在目录，正在打开预览...')
 
       // 延迟预览，确保文件列表已加载
       setTimeout(() => {
         const targetFile = filesStore.files.find(f => f.path === processedPath.fileToPreview)
         if (targetFile && targetFile.is_previewable) {
           handlePreview(targetFile)
+          ElMessage.success('已打开文件预览')
         } else {
           ElMessage.warning('文件不支持预览或未找到')
         }
-      }, 300)
+      }, 500)
     } else {
       // 如果是目录路径，直接跳转
-      loading.close()
       await filesStore.navigateTo(processedPath.directoryPath)
       ElMessage.success('已跳转到目标目录')
     }
 
     pathInput.value = ''
   } catch (error: any) {
-    ElMessage.error(error.message || '路径跳转失败')
+    console.error('路径跳转错误:', error)
+    ElMessage.error(error.response?.data?.detail || error.message || '路径跳转失败')
   }
 }
 
