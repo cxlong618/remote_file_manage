@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime
 import aiofiles
 import os
+import shutil
 
 from ..models.file import FileInfo
 from ..utils.path import validate_path, get_relative_path, is_safe_path
@@ -184,3 +185,165 @@ def get_parent_path(path: str) -> Optional[str]:
         return ""
 
     return str(parent)
+
+
+async def batch_delete_files(paths: List[str]) -> Tuple[int, int, List[str]]:
+    """
+    批量删除文件
+
+    Args:
+        paths: 相对于根目录的文件路径列表
+
+    Returns:
+        (成功删除数量, 失败数量, 错误信息列表)
+    """
+    deleted = 0
+    failed = 0
+    errors = []
+
+    for path in paths:
+        try:
+            full_path = validate_path(path, settings.root_path)
+
+            if not full_path.exists():
+                failed += 1
+                errors.append(f"{path}: 文件不存在")
+                continue
+
+            if full_path == Path(settings.root_path):
+                failed += 1
+                errors.append(f"{path}: 不能删除根目录")
+                continue
+
+            if full_path.is_dir():
+                shutil.rmtree(full_path)
+            else:
+                full_path.unlink()
+            deleted += 1
+        except PermissionError:
+            failed += 1
+            errors.append(f"{path}: 权限不足")
+        except Exception as e:
+            failed += 1
+            errors.append(f"{path}: {str(e)}")
+
+    return deleted, failed, errors
+
+
+async def batch_move_files(paths: List[str], target_path: str, overwrite: bool = False) -> Tuple[int, int, List[str]]:
+    """
+    批量移动文件
+
+    Args:
+        paths: 相对于根目录的文件路径列表
+        target_path: 目标目录路径（相对于根目录）
+        overwrite: 是否覆盖已存在的文件
+
+    Returns:
+        (成功移动数量, 失败数量, 错误信息列表)
+    """
+    moved = 0
+    failed = 0
+    errors = []
+
+    try:
+        target_full_path = validate_path(target_path, settings.root_path)
+
+        if not target_full_path.exists():
+            failed = len(paths)
+            errors.append(f"目标目录不存在: {target_path}")
+            return moved, failed, errors
+
+        if not target_full_path.is_dir():
+            failed = len(paths)
+            errors.append(f"目标不是目录: {target_path}")
+            return moved, failed, errors
+
+        for path in paths:
+            try:
+                source_path = validate_path(path, settings.root_path)
+
+                if not source_path.exists():
+                    failed += 1
+                    errors.append(f"{path}: 源文件不存在")
+                    continue
+
+                target_file_path = target_full_path / source_path.name
+
+                # 检查目标是否已存在
+                if target_file_path.exists():
+                    if not overwrite:
+                        failed += 1
+                        errors.append(f"{path}: 目标位置已存在同名文件")
+                        continue
+
+                    # 覆盖已存在的文件/目录
+                    if target_file_path.is_dir():
+                        shutil.rmtree(target_file_path)
+                    else:
+                        target_file_path.unlink()
+
+                # 执行移动
+                shutil.move(str(source_path), str(target_file_path))
+                moved += 1
+            except PermissionError:
+                failed += 1
+                errors.append(f"{path}: 权限不足")
+            except Exception as e:
+                failed += 1
+                errors.append(f"{path}: {str(e)}")
+
+    except FileNotFoundError:
+        failed = len(paths)
+        errors.append(f"目标目录不存在: {target_path}")
+    except Exception as e:
+        failed = len(paths)
+        errors.append(f"目标目录错误: {str(e)}")
+
+    return moved, failed, errors
+
+
+async def batch_download_files(paths: List[str]) -> Tuple[Path, int]:
+    """
+    批量下载文件（创建ZIP）
+
+    Args:
+        paths: 相对于根目录的文件路径列表
+
+    Returns:
+        (ZIP文件路径, 文件数量)
+    """
+    import zipfile
+    import tempfile
+    import uuid
+
+    # 创建临时ZIP文件
+    temp_dir = Path(tempfile.gettempdir())
+    zip_path = temp_dir / f"batch_download_{uuid.uuid4().hex}.zip"
+
+    file_count = 0
+
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for path in paths:
+            try:
+                full_path = validate_path(path, settings.root_path)
+
+                if not full_path.exists():
+                    continue
+
+                if full_path.is_file():
+                    # 添加单个文件
+                    arcname = full_path.name
+                    zip_file.write(full_path, arcname)
+                    file_count += 1
+                elif full_path.is_dir():
+                    # 添加整个目录
+                    for file_path in full_path.rglob('*'):
+                        if file_path.is_file():
+                            arcname = Path(full_path.name) / file_path.relative_to(full_path)
+                            zip_file.write(file_path, arcname)
+                            file_count += 1
+            except Exception:
+                continue
+
+    return zip_path, file_count

@@ -22,6 +22,44 @@ export const deleteFile = async (path: string): Promise<{ success: boolean; mess
   return response.data
 }
 
+/**
+ * 批量删除文件
+ */
+export const batchDeleteFiles = async (paths: string[]): Promise<{ success: boolean; deleted: number; failed: number; errors: string[] }> => {
+  const response = await api.post('/files/batch-delete', { paths })
+  return response.data
+}
+
+/**
+ * 批量移动文件
+ */
+export const batchMoveFiles = async (paths: string[], targetPath: string, overwrite: boolean = false): Promise<{ success: boolean; moved: number; failed: number; errors: string[] }> => {
+  const response = await api.post('/files/batch-move', {
+    paths,
+    target_path: targetPath,
+    overwrite
+  })
+  return response.data
+}
+
+/**
+ * 批量下载文件（ZIP）
+ */
+export const batchDownloadFiles = async (paths: string[], zipName: string = 'download.zip') => {
+  const response = await api.post('/files/batch-download', { paths }, {
+    responseType: 'blob'
+  })
+
+  const url = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = zipName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
 export const previewText = async (path: string): Promise<{ content: string }> => {
   const response = await api.get<{ content: string }>('/files/preview/text', {
     params: { path }

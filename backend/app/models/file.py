@@ -27,6 +27,39 @@ class DeleteResponse(BaseModel):
     message: str
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    paths: list[str]
+
+
+class BatchDeleteResponse(BaseModel):
+    """批量删除响应"""
+    success: bool
+    deleted: int
+    failed: int
+    errors: list[str] = []
+
+
+class BatchMoveRequest(BaseModel):
+    """批量移动请求"""
+    paths: list[str]
+    target_path: str
+    overwrite: bool = False
+
+
+class BatchMoveResponse(BaseModel):
+    """批量移动响应"""
+    success: bool
+    moved: int
+    failed: int
+    errors: list[str] = []
+
+
+class BatchDownloadRequest(BaseModel):
+    """批量下载请求"""
+    paths: list[str]
+
+
 class UploadResponse(BaseModel):
     """上传响应"""
     success: bool

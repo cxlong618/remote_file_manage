@@ -1,5 +1,54 @@
 <template>
   <div class="file-browser">
+    <!-- 批量操作栏 -->
+    <el-alert
+      v-if="filesStore.selectedFiles.length > 0"
+      type="info"
+      :closable="false"
+      class="batch-action-bar"
+    >
+      <template #default>
+        <div class="batch-action-content">
+          <span class="selection-info">
+            已选择 <strong>{{ filesStore.selectedFiles.length }}</strong> 项
+          </span>
+          <div class="batch-actions">
+            <el-button
+              type="primary"
+              :icon="Download"
+              size="small"
+              @click="handleBatchDownload"
+              :loading="batchDownloading"
+            >
+              批量下载
+            </el-button>
+            <el-button
+              type="primary"
+              :icon="FolderOpened"
+              size="small"
+              @click="showBatchMoveDialog = true"
+            >
+              批量移动
+            </el-button>
+            <el-button
+              type="danger"
+              :icon="Delete"
+              size="small"
+              @click="showBatchDeleteDialog = true"
+            >
+              批量删除
+            </el-button>
+            <el-button
+              size="small"
+              @click="filesStore.clearSelection"
+            >
+              取消选择
+            </el-button>
+          </div>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="breadcrumb">
@@ -66,11 +115,20 @@
     <!-- 文件列表 -->
     <div class="file-list">
       <el-table
+        ref="tableRef"
         :data="filesStore.files"
         v-loading="filesStore.loading"
         style="width: 100%"
         @row-dblclick="handleRowDblClick"
+        @selection-change="filesStore.handleSelectionChange"
       >
+        <!-- 复选框列 -->
+        <el-table-column
+          type="selection"
+          width="50"
+          fixed
+        />
+
         <el-table-column prop="name" label="名称" min-width="250">
           <template #default="{ row }">
             <div class="file-name" @click="handleNameClick(row)">
@@ -164,6 +222,107 @@
       v-model:visible="showPreviewDialog"
       :file="currentPreviewFile"
     />
+
+    <!-- 批量移动对话框 -->
+    <el-dialog
+      v-model="showBatchMoveDialog"
+      title="批量移动文件"
+      width="600px"
+    >
+      <div class="batch-move-content">
+        <div class="move-info">
+          将 <strong>{{ filesStore.selectedFiles.length }}</strong> 个文件移动到：
+        </div>
+
+        <el-input
+          v-model="targetMovePath"
+          placeholder="请输入目标路径"
+          class="target-path-input"
+        >
+          <template #prepend>目标路径</template>
+        </el-input>
+
+        <div class="move-options">
+          <el-checkbox v-model="overwriteOnMove">
+            遇到重名文件时覆盖
+          </el-checkbox>
+        </div>
+
+        <el-alert
+          v-if="targetMovePath === filesStore.currentPath"
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          不能移动到当前目录
+        </el-alert>
+      </div>
+
+      <template #footer>
+        <el-button @click="showBatchMoveDialog = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="confirmBatchMove"
+          :disabled="!targetMovePath || targetMovePath === filesStore.currentPath"
+          :loading="batchMoving"
+        >
+          确定移动
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量删除确认对话框 -->
+    <el-dialog
+      v-model="showBatchDeleteDialog"
+      title="批量删除确认"
+      width="500px"
+    >
+      <div class="batch-delete-content">
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          确定要删除以下 <strong>{{ filesStore.selectedFiles.length }}</strong> 个项目吗？此操作不可撤销。
+        </el-alert>
+
+        <!-- 文件清单 -->
+        <div class="file-list-compact">
+          <div
+            v-for="file in displayFiles"
+            :key="file.path"
+            class="file-item"
+          >
+            <el-icon :size="18" :color="getIconColor(file)">
+              <component :is="getFileIcon(file)" />
+            </el-icon>
+            <span>{{ file.name }}</span>
+          </div>
+          <div v-if="filesStore.selectedFiles.length > 5" class="more-files">
+            还有 {{ filesStore.selectedFiles.length - 5 }} 个文件...
+          </div>
+        </div>
+
+        <!-- 确认复选框 -->
+        <div class="confirmation">
+          <el-checkbox v-model="deleteConfirmed">
+            我已了解，确认删除
+          </el-checkbox>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="showBatchDeleteDialog = false">取消</el-button>
+        <el-button
+          type="danger"
+          @click="confirmBatchDelete"
+          :disabled="!deleteConfirmed"
+          :loading="batchDeleting"
+        >
+          确定删除
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -182,17 +341,28 @@ import {
   Download
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
-import { deleteFile } from '@/api/files'
+import { deleteFile, batchDeleteFiles, batchMoveFiles, batchDownloadFiles } from '@/api/files'
 import FileUpload from './FileUpload.vue'
 import FilePreview from './FilePreview.vue'
 import { formatFileSize, formatDateTime, getFileIcon } from '@/utils/format'
 import type { FileInfo } from '@/types'
 
 const filesStore = useFilesStore()
+const tableRef = ref()
 const pathInput = ref('')
 const showUploadDialog = ref(false)
 const showPreviewDialog = ref(false)
 const currentPreviewFile = ref<FileInfo | null>(null)
+
+// 批量操作状态
+const showBatchMoveDialog = ref(false)
+const showBatchDeleteDialog = ref(false)
+const targetMovePath = ref('')
+const overwriteOnMove = ref(false)
+const deleteConfirmed = ref(false)
+const batchMoving = ref(false)
+const batchDeleting = ref(false)
+const batchDownloading = ref(false)
 
 // 路径目录数组（用于面包屑）
 const pathDirs = computed(() => {
@@ -210,6 +380,11 @@ const pathDirs = computed(() => {
       path: parts.slice(0, index + 1).join('/')
     }
   })
+})
+
+// 显示文件列表（前5个）
+const displayFiles = computed(() => {
+  return filesStore.selectedFiles.slice(0, 5)
 })
 
 // 获取图标颜色
@@ -387,6 +562,80 @@ const handleDownload = async (file: FileInfo) => {
   }
 }
 
+// 批量移动
+const confirmBatchMove = async () => {
+  if (!targetMovePath.value || targetMovePath.value === filesStore.currentPath) {
+    return
+  }
+
+  batchMoving.value = true
+  try {
+    const paths = filesStore.selectedFiles.map(f => f.path)
+    const result = await batchMoveFiles(paths, targetMovePath.value, overwriteOnMove.value)
+
+    if (result.success) {
+      ElMessage.success(`成功移动 ${result.moved} 个文件`)
+      if (result.failed > 0) {
+        ElMessage.warning(`${result.failed} 个文件移动失败`)
+      }
+      filesStore.clearSelection()
+      showBatchMoveDialog.value = false
+      await filesStore.loadFiles(filesStore.currentPath)
+    } else {
+      ElMessage.error('批量移动失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '批量移动失败')
+  } finally {
+    batchMoving.value = false
+  }
+}
+
+// 批量删除
+const confirmBatchDelete = async () => {
+  if (!deleteConfirmed.value) {
+    return
+  }
+
+  batchDeleting.value = true
+  try {
+    const paths = filesStore.selectedFiles.map(f => f.path)
+    const result = await batchDeleteFiles(paths)
+
+    if (result.success) {
+      ElMessage.success(`成功删除 ${result.deleted} 个文件`)
+      if (result.failed > 0) {
+        ElMessage.warning(`${result.failed} 个文件删除失败`)
+      }
+      filesStore.clearSelection()
+      showBatchDeleteDialog.value = false
+      deleteConfirmed.value = false
+      await filesStore.loadFiles(filesStore.currentPath)
+    } else {
+      ElMessage.error('批量删除失败')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '批量删除失败')
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+// 批量下载
+const handleBatchDownload = async () => {
+  batchDownloading.value = true
+  try {
+    const paths = filesStore.selectedFiles.map(f => f.path)
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    await batchDownloadFiles(paths, `batch-download-${timestamp}.zip`)
+    ElMessage.success('批量下载成功')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '批量下载失败')
+  } finally {
+    batchDownloading.value = false
+  }
+}
+
 // 刷新
 const refresh = () => {
   filesStore.loadFiles(filesStore.currentPath)
@@ -403,6 +652,37 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
   gap: 16px;
+}
+
+.batch-action-bar {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.batch-action-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.selection-info {
+  font-size: 14px;
+  color: #303133;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .toolbar {
@@ -452,11 +732,83 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
+.batch-move-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.move-info {
+  font-size: 14px;
+  color: #606266;
+}
+
+.target-path-input {
+  width: 100%;
+}
+
+.move-options {
+  display: flex;
+  align-items: center;
+}
+
+.batch-delete-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-list-compact {
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+.more-files {
+  padding: 8px;
+  color: #909399;
+  font-size: 13px;
+  text-align: center;
+}
+
+.confirmation {
+  padding: 12px;
+  background: #fef0f0;
+  border-radius: 4px;
+  border: 1px solid #fbc4c4;
+}
+
 :deep(.el-breadcrumb__item) {
   cursor: pointer;
 }
 
 :deep(.el-breadcrumb__item:hover .el-breadcrumb__inner) {
   color: #409EFF;
+}
+
+@media (max-width: 768px) {
+  .batch-action-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .batch-actions {
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
 }
 </style>

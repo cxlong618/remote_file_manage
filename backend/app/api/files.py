@@ -2,14 +2,27 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path
 import mimetypes
+import os
 
-from ..models.file import FileListResponse, FileInfo, DeleteResponse
+from ..models.file import (
+    FileListResponse,
+    FileInfo,
+    DeleteResponse,
+    BatchDeleteRequest,
+    BatchDeleteResponse,
+    BatchMoveRequest,
+    BatchMoveResponse,
+    BatchDownloadRequest
+)
 from ..services.file_service import (
     list_files,
     get_file_info,
     delete_file,
     read_text_file,
-    get_parent_path
+    get_parent_path,
+    batch_delete_files,
+    batch_move_files,
+    batch_download_files
 )
 from ..utils.preview import should_stream_preview, is_text_previewable
 from ..dependencies import get_current_user
@@ -291,6 +304,110 @@ async def download_folder(
             media_type="application/zip",
             headers={
                 "Content-Disposition": f"attachment; filename={full_path.name}.zip"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/batch-delete", response_model=BatchDeleteResponse, summary="批量删除文件")
+async def batch_delete(
+    request: BatchDeleteRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    批量删除文件或目录
+
+    - **paths**: 要删除的文件路径列表（相对于根目录）
+    """
+    try:
+        deleted, failed, errors = await batch_delete_files(request.paths)
+        return BatchDeleteResponse(
+            success=failed == 0,
+            deleted=deleted,
+            failed=failed,
+            errors=errors
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/batch-move", response_model=BatchMoveResponse, summary="批量移动文件")
+async def batch_move(
+    request: BatchMoveRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    批量移动文件或目录
+
+    - **paths**: 要移动的文件路径列表（相对于根目录）
+    - **target_path**: 目标目录路径（相对于根目录）
+    - **overwrite**: 是否覆盖已存在的文件
+    """
+    try:
+        moved, failed, errors = await batch_move_files(
+            request.paths,
+            request.target_path,
+            request.overwrite
+        )
+        return BatchMoveResponse(
+            success=failed == 0,
+            moved=moved,
+            failed=failed,
+            errors=errors
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/batch-download", summary="批量下载文件（ZIP）")
+async def batch_download(
+    request: BatchDownloadRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    批量下载文件（打包为ZIP）
+
+    - **paths**: 要下载的文件路径列表（相对于根目录）
+    """
+    import io
+
+    try:
+        zip_path, file_count = await batch_download_files(request.paths)
+
+        if file_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="没有可下载的文件"
+            )
+
+        # 读取ZIP文件并删除临时文件
+        with open(zip_path, 'rb') as f:
+            zip_content = f.read()
+
+        # 删除临时文件
+        try:
+            zip_path.unlink()
+        except:
+            pass
+
+        return StreamingResponse(
+            io.BytesIO(zip_content),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": "attachment; filename=batch-download.zip"
             }
         )
 
