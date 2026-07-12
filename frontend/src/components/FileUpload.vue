@@ -15,7 +15,7 @@
       :on-success="handleSuccess"
       :on-error="handleError"
       :before-upload="beforeUpload"
-      :file-list="fileList"
+      v-model:file-list="fileList"
       multiple
       :auto-upload="false"
     >
@@ -115,14 +115,20 @@ const handleUpload = async () => {
   uploading.value = true
 
   try {
-    // 手动上传所有文件
-    const files = uploadRef.value?.uploadFiles || []
-    for (const file of files) {
-      if (file.status === 'ready') {
-        const rawFile = file.raw as File
+    // 逐个上传，等待每个文件完成后再处理下一个
+    for (const file of fileList.value) {
+      const rawFile = file.raw as File
+      if (!rawFile) continue
+
+      file.status = 'uploading'
+      try {
         await uploadFile(rawFile, props.currentPath, (percent) => {
           file.percentage = percent
         })
+        file.status = 'success'
+      } catch (err: any) {
+        file.status = 'fail'
+        throw err
       }
     }
 

@@ -8,12 +8,9 @@ export const uploadFile = async (
 ): Promise<UploadResponse> => {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('path', path)
 
   const response = await api.post<UploadResponse>('/upload/', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    },
+    params: { path },
     onUploadProgress: (progressEvent) => {
       if (progressEvent.total && onProgress) {
         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -32,12 +29,9 @@ export const uploadMultipleFiles = async (
   files.forEach(file => {
     formData.append('files', file)
   })
-  formData.append('path', path)
 
   const response = await api.post('/upload/multiple', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+    params: { path }
   })
   return response.data
 }

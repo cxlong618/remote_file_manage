@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="file-browser">
     <!-- 批量操作栏 -->
     <el-alert
@@ -152,7 +152,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="400" fixed="right">
           <template #default="{ row }">
             <!-- 文件夹操作 -->
             <template v-if="row.is_dir">
@@ -197,6 +197,14 @@
             </template>
 
             <!-- 删除按钮（文件和文件夹都有） -->
+            <el-button
+              size="small"
+              :icon="CopyDocument"
+              @click="handleCopyPath(row)"
+            >
+              复制路径
+            </el-button>
+
             <el-button
               type="danger"
               size="small"
@@ -338,7 +346,8 @@ import {
   FolderOpened,
   View,
   Delete,
-  Download
+  Download,
+  CopyDocument
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { deleteFile, batchDeleteFiles, batchMoveFiles, batchDownloadFiles } from '@/api/files'
@@ -535,6 +544,29 @@ const handleDelete = async (file: FileInfo) => {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '删除失败')
     }
+  }
+}
+
+// 复制文件路径到剪贴板
+const handleCopyPath = async (file: FileInfo) => {
+  const path = file.path || file.name
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(path)
+    } else {
+      // 非安全上下文（如 HTTP）的降级方案
+      const textarea = document.createElement('textarea')
+      textarea.value = path
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success('路径已复制')
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
   }
 }
 
