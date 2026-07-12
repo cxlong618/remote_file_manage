@@ -1,4 +1,4 @@
-import api from './index'
+﻿import api from './index'
 import type { UploadResponse } from '@/types'
 
 export const uploadFile = async (
@@ -11,6 +11,7 @@ export const uploadFile = async (
 
   const response = await api.post<UploadResponse>('/upload/', formData, {
     params: { path },
+    headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (progressEvent) => {
       if (progressEvent.total && onProgress) {
         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -31,7 +32,8 @@ export const uploadMultipleFiles = async (
   })
 
   const response = await api.post('/upload/multiple', formData, {
-    params: { path }
+    params: { path },
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
   return response.data
 }
